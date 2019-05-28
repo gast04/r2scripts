@@ -14,8 +14,13 @@ stdio=/dev/pts/2
 ´´´
 '''
 
+# trace constants
+start_addr = 0x400000 
+end_addr =   0x565918
+
 r2p = r2pipe.open()
-r2p.cmd("dcu main") # start at main function
+#r2p.cmd("dcu main") # start at main function
+r2p.cmd("dcu 0x40974C")
 
 insttrace = open("it_trace", "w+")
 regdumps = open("reg_dump", "w+")
@@ -26,7 +31,7 @@ def tohex(val, nbits=32):
 def hexdump(src, length=16):
     FILTER = ''.join([(len(repr(chr(x))) == 3) and chr(x) or '.' for x in range(256)])
     lines = []
-    for c in xrange(0, len(src), length):
+    for c in range(0, len(src), length):
         chars = src[c:c+length]
         hex = ' '.join(["%02x" % x for x in chars])
         printable = ''.join(["%s" % ((x <= 127 and FILTER[x]) or '.') for x in chars])
@@ -76,6 +81,7 @@ def regDump(addr, regs):
         regdumps.write(getDump(regs["rdi"]))
 
 def getDerefAddr(regs, disasm):
+  #print(disasm)
   raw = re.search("\[.*\]", disasm).group()
   deref = raw[1:-1] # return deref operands
   parts = deref.split(" ")
@@ -85,13 +91,24 @@ def getDerefAddr(regs, disasm):
     deref_addr = regs[parts[0]]
 
   if len(parts) == 1:
-    return deref_addr
+    return raw, deref_addr
 
+  # if second part looks like rsi*2
+  mulfactor = 1
+  if "*" in parts[2]:
+    mulfactor = int(parts[2].split("*")[1])
+    secpart = parts[2].split("*")[0]
+  else:
+    secpart = parts[2]
+
+  #print("secpart: {}, mulfactor: {}". format(secpart, mulfactor))
   # if more parts:[r12d + 0x3c] or [rbp + rcx]
-  if parts[2][0] == 'r' or parts[2][0] == 'e': # [rbp + rcx] case
-    tmp = regs[parts[2]]
+  if secpart[0] == 'r' or secpart[0] == 'e': # [rbp + rcx] case
+    tmp = regs[secpart]
   else:   # [rbx - constant] case 
-    tmp = int(parts[2],16)
+    tmp = int(secpart,16)
+
+  tmp *= mulfactor
 
   # middle part is always operand Plus or Minus
   if parts[1] == '+':
@@ -103,7 +120,13 @@ def getDerefAddr(regs, disasm):
 
 ###################################################################
 # TODO: ignore standard functions, and generalize tracer more
+# fetch library addresses and avoid there execution
+# using: dmj and parse all executeable regions
 ###################################################################
+
+print("\n\n start Tracing")
+print("trace Region: {} - {}".format(hex(start_addr), hex(end_addr)))
+print("\n")
 
 ## main loop
 while True:
@@ -114,18 +137,20 @@ while True:
     rip = regs['rip']
 
     # specify code range, if needed
-    if rip < 0x0 and rip >= 0xFFFFFFFF:
+    if rip < start_addr and rip > end_addr:
         continue
 
     # get disasm of current rip
     disasm = getDisasm(rip)
     if disasm == "invalid":
         # should never happen
+        print("Invalid instruction at: {}".format(hex(rip)))
         continue
     elif disasm == "int3":
         # ignore debug traps
         r2p.cmd("dr rip = {}".format(rip+1))
         rip = rip+1
+        print("skip int3 at:{}".format(hex(rip)))
         disasm = getDisasm(rip)
     elif disasm == "nop":
         # ignore nops
@@ -142,19 +167,19 @@ while True:
       insttrace.write(msg + "\tRAX: {}, RBX: {}, RCX: {}, RDX: {}, RDI: {}, RSI:{}, {}: {}\n".format( 
         tohex(regs['rax']), tohex(regs['rbx']), tohex(regs['rcx']), tohex(regs['rdx']), tohex(regs['rdi']), tohex(regs['rsi']), operand, tohex(data[0]) ))
     else:
-      insttrace.write(msg + "\tRAX: {}, RBX: {}, RCX: {}, RDX: {}, RDI: {}, RSI:{}, {}: {}\n".format( 
+      insttrace.write(msg + "\tRAX: {}, RBX: {}, RCX: {}, RDX: {}, RDI: {}, RSI:{}\n".format( 
         tohex(regs['rax']), tohex(regs['rbx']), tohex(regs['rcx']), tohex(regs['rdx']), tohex(regs['rdi']), tohex(regs['rsi'])))
 
-    # continue debugging from here
-    #if rip == 0xB00BFACE:
-    #    break
-
     # Stop Tracing at address
-    if rip == 0xDEADBEEF:
+    if rip == 0x4072BC:
+        print("Valid Serial")
+        break
+    
+    if rip == 0x407270:
+        print("Invalid Serial")
         break
 
 
 # close dump files
 insttrace.close()
 regdumps.close()
-
