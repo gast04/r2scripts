@@ -22,12 +22,21 @@ ENABLE_REG_DUMP = False
 PRINT_SYSCALLS = True
 MAX_INSTRUCTIONS = 1000
 
+# open connection to r2 instance
 r2p = r2pipe.open()
-r2p.cmd("dcu main") # start at main function
-#r2p.cmd("dcu 0x40974C")
+CONTINUATION = False
 
-# tracing is always enabled
-insttrace = open("it_trace", "w+")
+# check if it is a continuation
+val = r2p.cmd("$r2trace.started?")
+if val.strip() != "1":
+  # first start
+  r2p.cmd("dcu main") # start at main function
+  # r2p.cmd("dcu 0x40974C")
+  r2p.cmd("$r2trace.started='1'") # mark execution as started
+else:
+  CONTINUATION = True
+
+insttrace = open("it_trace", "w+")  # tracing is always enabled
 
 if ENABLE_REG_DUMP:
   regdumps = open("reg_dump", "w+")
@@ -67,9 +76,10 @@ def getDisasm(addr):
         return 'invalid'
     return p['disasm']
 
-print("\n\nstart Tracing")
-print("trace Region: {} - {}".format(hex(start_addr), hex(end_addr)))
-print("\n")
+if not CONTINUATION:
+  print("\n\nstart Tracing")
+  print("trace Region: {} - {}".format(hex(start_addr), hex(end_addr)))
+  print("\n")
 
 # start exit thread
 exit_t = threading.Thread(target=exit_thread, args=())
