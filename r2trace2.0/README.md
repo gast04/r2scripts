@@ -21,7 +21,7 @@ Legend: read = Red, write = Green, read & write = yellow
 
 # Startup
 add this to .radare2rc file:\
-`(t2, #!pipe python <PathToRepository>/r2scripts/r2trace2.0/r2trace.py)`
+`(t2, #!pipe python <PathToRepository>/r2scripts/r2trace2.0/r2trace.py)`\
 and start r2 with:\
 `r2 -d -c '.(t2)' <binary>`
 
