@@ -1,26 +1,30 @@
 import r2pipe, threading, time
 
-from termcolor import colored
-
 from dump_helper import *
 from imageHelp import *
 from trace_helper import *
+from inst_printing import *
 
 # trace constants
+'''
 start_addr = 0x00401c05 
 end_addr =   0x00403000
 stop_addr =  0x00402072
-'''
+
 start_addr = 0x13370000
 end_addr = 0x13370000 + 126960
 stop_addr = 0x1337b6ff
 '''
+start_addr = 0x00401000
+end_addr = 0x0040103d
+stop_addr = end_addr
+
 
 # Hyperparameters
 GENERATE_IMAGE = False
 ENABLE_REG_DUMP = False
 PRINT_SYSCALLS = True
-MAX_INSTRUCTIONS = 1000
+MAX_INSTRUCTIONS = 2000
 
 # open connection to r2 instance
 r2p = r2pipe.open()
@@ -36,7 +40,7 @@ if val.strip() != "1":
 else:
   CONTINUATION = True
 
-insttrace = open("it_trace", "w+")  # tracing is always enabled
+insttrace = open("it_trace", "a+")  # tracing is always enabled
 
 if ENABLE_REG_DUMP:
   regdumps = open("reg_dump", "w+")
@@ -76,6 +80,28 @@ def getDisasm(addr):
         return 'invalid'
     return p['disasm']
 
+def printingWrapper(disasm, rip, regs):
+  global PAUSE_WAIT, PAUSE_INP
+
+  wait = False
+  if "syscall" in disasm:
+    print_syscall(disasm, rip, regs)
+    wait = True
+  elif "call" in disasm:
+    print_call(disasm, rip)
+    wait = True
+
+  if wait:
+    while PAUSE_WAIT:
+      time.sleep(0.5)
+    PAUSE_WAIT = True
+    if PAUSE_INP == "Y" or PAUSE_INP == "y":
+      PAUSE_INP = ""
+      return True
+  return False
+
+
+
 if not CONTINUATION:
   print("\n\nstart Tracing")
   print("trace Region: {} - {}".format(hex(start_addr), hex(end_addr)))
@@ -110,6 +136,9 @@ while MAIN_LOOP:
       rip = rip+1
       print("skip int3 at:{}".format(hex(rip)))
       disasm = getDisasm(rip)
+  elif disasm == "ud2":
+    print("Invalid ud2 Instruction at {}, stop tracing".format(hex(rip)))
+    break
   elif disasm == "nop":
       # ignore nops
       continue
@@ -118,14 +147,9 @@ while MAIN_LOOP:
   regDump(rip, regs)  # dump register pointers
   msg = "{}: {}".format( tohex(rip), disasm.ljust(24, " ") )
 
-  if "call" in disasm:
-    print(colored(disasm, "blue") + " Stop (Y/N)")
-    while PAUSE_WAIT:
-      time.sleep(0.5)
-    PAUSE_WAIT = True
-    if PAUSE_INP == "Y" or PAUSE_INP == "y":
-      PAUSE_INP = ""
-      break
+  # pause on calls and syscalls
+  if printingWrapper(disasm, rip, regs):
+    break
 
   # print all dereferences
   if '[' in disasm:
