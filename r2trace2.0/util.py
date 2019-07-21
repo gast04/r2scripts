@@ -44,14 +44,15 @@ def identifyRW(disasm, imgData):
     imgData[-1][2] = "read"    
   #print(imgData[-1][2])
 
-def getDerefAddr(regs, disasm, imgData):
+def getDerefAddr(regs, disasm, imgData=None):
   #print(disasm)
 
   if "*" in disasm:
-    print("cannot disasm *")
+    print("cannot disasm * -> {}".format(disasm))
     return None, None
 
-  identifyRW(disasm, imgData)
+  if imgData is not None:
+    identifyRW(disasm, imgData)
 
   raw = re.search("\[.*\]", disasm).group()
   deref = raw[1:-1] # return deref operands
@@ -61,12 +62,12 @@ def getDerefAddr(regs, disasm, imgData):
   for p in parts:
 
     # check for register
-    if p[0] == 'r' or p[0] == 'e': # register check
+    if p[0] == 'r' or p[0] == 'e':  # register check
       args.append(getRegValue(p, regs))
 
     #  check for constant
     val, error = is_number(p)
-    if error == False:
+    if not error:
       args.append(val)
 
     # operand check
@@ -82,5 +83,6 @@ def getDerefAddr(regs, disasm, imgData):
   else:
     deref_addr = val
 
-  imgData[-1][1] = deref_addr
+  if imgData is not None:
+    imgData[-1][1] = deref_addr
   return raw, deref_addr
