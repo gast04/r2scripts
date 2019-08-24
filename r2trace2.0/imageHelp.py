@@ -6,8 +6,9 @@ def createImage(data, savename):
 
   # take care of stack and heap data, (easy eliminate)
   delimiter = 0x7ff000000000
-  delimiter = 0x13370000
-  newdata = list(filter(lambda x: x[1]>delimiter and x[1]<0x133afd28, data))
+  delimiter = 6000000
+  #newdata = list(filter(lambda x: x[1]>delimiter and x[1]<0x133afd28, data))
+  newdata = list(filter(lambda x: x[1]>delimiter, data))
 
   # take the max instruction count (maybe not all included, register operations)
   y_size = max([x[0] for x in newdata])
@@ -29,3 +30,4 @@ def createImage(data, savename):
 
   img.show()
   img.save(savename)
+

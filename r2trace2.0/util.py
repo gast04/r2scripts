@@ -71,6 +71,7 @@ def getDerefAddr(regs, disasm, imgData=None):
       args.append(val)
 
     # operand check
+    operand =""
     if p == "-":
       operand = "-"
     elif p == "+":

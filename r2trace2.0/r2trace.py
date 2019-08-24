@@ -15,16 +15,16 @@ start_addr = 0x13370000
 end_addr = 0x13370000 + 126960
 stop_addr = 0x1337b6ff
 '''
-start_addr = 0x00401000
-end_addr = 0x0040103d
+start_addr = 0x400400
+end_addr = 0x4025B5
 stop_addr = end_addr
 
 
 # Hyperparameters
-GENERATE_IMAGE = False
+GENERATE_IMAGE = True
 ENABLE_REG_DUMP = False
-PRINT_SYSCALLS = True
-MAX_INSTRUCTIONS = 2000
+PRINT_SYSCALLS = False
+MAX_INSTRUCTIONS = 2000000
 
 # open connection to r2 instance
 r2p = r2pipe.open()
@@ -34,8 +34,8 @@ CONTINUATION = False
 val = r2p.cmd("$r2trace.started?")
 if val.strip() != "1":
   # first start
-  r2p.cmd("dcu main") # start at main function
-  # r2p.cmd("dcu 0x40974C")
+  #r2p.cmd("dcu main") # start at main function
+  r2p.cmd("dcu 0x402580")
   r2p.cmd("$r2trace.started='1'") # mark execution as started
 else:
   CONTINUATION = True
@@ -122,6 +122,7 @@ while MAIN_LOOP:
 
   # specify code range, if needed
   if rip < start_addr or rip > end_addr:
+      print(hex(rip))
       continue
 
   # get disasm of current rip
@@ -140,7 +141,6 @@ while MAIN_LOOP:
     print("Invalid ud2 Instruction at {}, stop tracing".format(hex(rip)))
     break
   elif disasm == "nop":
-      # ignore nops
       continue
 
   inst_count_range += 1
